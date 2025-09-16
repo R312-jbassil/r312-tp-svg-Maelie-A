@@ -1,0 +1,146 @@
+---
+import "../styles/global.css";
+---
+<html lang="fr" data-theme="cupcake">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width" />
+    <title>Générateur de SVG (HF)</title>
+  </head>
+  <body class="min-h-screen bg-base-200">
+    <main class="container mx-auto p-4 md:p-8 space-y-6">
+      <h1 class="text-3xl font-bold">Générateur de SVG (HF)</h1>
+
+      <!-- Grille: 3 colonnes en desktop, empilé en mobile -->
+      <section class="grid gap-6 md:grid-cols-3">
+        <!-- 1) Prompt -->
+        <div class="card bg-base-100">
+          <div class="card-body">
+            <h2 class="card-title">1) Entrer le prompt</h2>
+            <textarea id="user-prompt" class="textarea textarea-bordered h-40"
+              placeholder="Ex: A flat minimal icon of a flower with soft gradients"></textarea>
+            <div class="flex gap-3 pt-2">
+              <button id="generate-button" class="btn btn-primary">Générer</button>
+              <button id="clear-button" class="btn">Effacer</button>
+            </div>
+            <p id="error-msg" class="text-error text-sm mt-2 hidden"></p>
+          </div>
+        </div>
+
+        <!-- 2) Code généré -->
+        <div class="card bg-base-100">
+          <div class="card-body">
+            <h2 class="card-title">2) Code généré</h2>
+            <pre class="mockup-code overflow-auto max-h-[420px]">
+<code id="svg-output">&lt;!-- Le SVG généré apparaîtra ici --&gt;</code>
+            </pre>
+            <div class="flex gap-2">
+              <button id="copy-code" class="btn btn-secondary btn-sm">Copier</button>
+              <button id="download-svg" class="btn btn-accent btn-sm">Télécharger .svg</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 3) Aperçu SVG -->
+        <div class="card bg-base-100">
+          <div class="card-body">
+            <h2 class="card-title">3) Aperçu SVG</h2>
+            <div id="svg-container" class="w-full aspect-square bg-base-200 grid place-items-center rounded-xl">
+              <span class="opacity-60">Aperçu</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <a href="/" class="link">← Retour</a>
+    </main>
+
+    <script>
+      //@ts-nocheck
+
+      // --- Appel à l'endpoint serveur ---
+      async function generateSVG(prompt) {
+        const res = await fetch('/api/generateSVG', { // ⬅️ route = src/pages/api/generateSVG.js
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ prompt }),
+        });
+        if (!res.ok) {
+          const e = await res.json().catch(() => ({}));
+          throw new Error(e.error || ('Erreur HTTP ' + res.status));
+        }
+        const data = await res.json();
+        return data.svg;
+      }
+
+      // --- Actions UI ---
+      async function handleSubmit() {
+        const promptEl = document.getElementById("user-prompt");
+        const svgContainer = document.getElementById("svg-container");
+        const svgOutput = document.getElementById("svg-output");
+        const generateButton = document.getElementById("generate-button");
+        const errorMsg = document.getElementById("error-msg");
+
+        const prompt = (promptEl?.value || "").trim();
+        errorMsg.classList.add("hidden");
+        if (!prompt) {
+          errorMsg.textContent = "Merci d'entrer un prompt.";
+          errorMsg.classList.remove("hidden");
+          return;
+        }
+
+        // Loader + désactivation du bouton
+        svgContainer.innerHTML = `<span class="loading loading-ring loading-xl"></span>`;
+        generateButton.disabled = true;
+
+        try {
+          const svgCode = await generateSVG(prompt);
+          svgOutput.textContent = svgCode || "<!-- Pas de SVG détecté -->";
+          svgContainer.innerHTML = svgCode || `<div class="text-sm opacity-60">Aucun &lt;svg&gt; trouvé</div>`;
+        } catch (err) {
+          svgOutput.textContent = `<!-- Erreur: ${err.message} -->`;
+          svgContainer.innerHTML = `<div class="text-error">Erreur: ${err.message}</div>`;
+        } finally {
+          generateButton.disabled = false;
+        }
+      }
+
+      function handleClear() {
+        document.getElementById("user-prompt").value = "";
+        document.getElementById("svg-output").textContent = "<!-- Le SVG généré apparaîtra ici -->";
+        document.getElementById("svg-container").innerHTML = `<span class="opacity-60">Aperçu</span>`;
+        document.getElementById("error-msg").classList.add("hidden");
+      }
+
+      function handleCopy() {
+        const code = document.getElementById("svg-output").textContent || "";
+        navigator.clipboard.writeText(code).then(() => {
+          const btn = document.getElementById("copy-code");
+          const old = btn.textContent;
+          btn.textContent = "Copié !";
+          setTimeout(() => (btn.textContent = old), 900);
+        });
+      }
+
+      function handleDownload() {
+        const code = document.getElementById("svg-output").textContent || "";
+        if (!code.includes("<svg")) return;
+        const blob = new Blob([code], { type: "image/svg+xml;charset=utf-8" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "generated.svg";
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+      }
+
+      // Listeners
+      document.getElementById("generate-button")?.addEventListener("click", handleSubmit);
+      document.getElementById("clear-button")?.addEventListener("click", handleClear);
+      document.getElementById("copy-code")?.addEventListener("click", handleCopy);
+      document.getElementById("download-svg")?.addEventListener("click", handleDownload);
+    </script>
+  </body>
+</html>
