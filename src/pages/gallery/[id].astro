@@ -1,0 +1,147 @@
+---
+export const prerender = false;
+
+import Layout from "../../layouts/Layout.astro";
+import pb from "../../utils/pb";
+import { Collections, type SvgRecord } from "../../utils/pocketbase-types";
+
+const id = Astro.params.id!;
+const svg = await pb.collection(Collections.Svg).getOne<SvgRecord>(id);
+
+const history =
+  Array.isArray(svg.chat_history)
+    ? svg.chat_history
+    : (svg.chat_history ? JSON.parse(svg.chat_history as any) : []);
+---
+
+<Layout>
+  <section class="grid gap-6 lg:grid-cols-2">
+    <div class="card bg-base-100 shadow-xl border border-base-300">
+      <div class="card-body">
+        <h2 class="card-title">Aperçu</h2>
+        <div id="svg-preview" class="min-h-64 rounded-box border border-base-300">
+          {svg.code_svg && <Fragment set:html={svg.code_svg} />}
+        </div>
+      </div>
+    </div>
+
+    <div class="card bg-base-100 shadow-xl border border-base-300 relative">
+<div class="card-body">
+  <h2 class="card-title">Conversation</h2>
+  
+  <div id="chat-history" class="overflow-y-auto max-h-96 mb-16">
+    {history.length > 0 
+        ? history.map((msg) => (
+          <div class={`chat ${msg.role === 'user' ? 'chat-start' : 'chat-end'}`}>
+            <div
+              class={`chat-bubble ${
+                msg.role === 'user'
+                  ? 'bg-primary text-primary-content'
+                  : 'bg-secondary text-secondary-content'
+              } max-w-[min(90vw,68ch)] p-3`}
+            >
+              <pre class="whitespace-pre-wrap break-words break-all text-xs md:text-sm leading-5 max-w-full overflow-x-auto select-text">
+                {msg.content}
+              </pre>
+            </div>
+            <div class="chat-footer opacity-60 text-xs mt-1">{msg.role}</div>
+          </div>
+          ))
+        : <span class="text-error">Aucun historique.</span>
+    }
+  </div>
+      </div>
+
+      <form id="input-prompt-form"
+            class="flex flex-col gap-2 w-full absolute bottom-0 left-0 right-0 bg-base-300 p-4"
+            autocomplete="off">
+        <input type="hidden" name="history" value={JSON.stringify(history)} />
+        <input type="hidden" name="id" value={svg.id} />
+        <div class="flex items-center gap-2">
+          <input id="prompt-input" name="editPrompt" type="text"
+                 class="input input-bordered flex-grow"
+                 placeholder="Ajoute une fenêtre, change la couleur…" />
+          <button class="btn btn-primary" type="submit">Edit</button>
+        </div>
+      </form>
+    </div>
+  </section>
+</Layout>
+
+<script>
+  //@ts-nocheck
+  const form = document.getElementById('input-prompt-form');
+  const svgPreview = document.getElementById('svg-preview');
+  const chatHistory = document.getElementById('chat-history');
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, (c) => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    }[c]));
+  }
+
+  async function generateSVG(messages) {
+    const res = await fetch('/api/generateSVG', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(messages),
+    });
+    const data = await res.json();
+    return data.svg?.content ?? data.svg ?? '';
+  }
+
+  form?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    const fd = new FormData(form);
+    let history;
+    try { history = JSON.parse(fd.get('history') || '[]'); }
+    catch { history = []; }
+
+    const userText = String(fd.get('editPrompt') || '').trim();
+    if (!userText) return;
+
+    const id = String(fd.get('id'));
+
+    history.push({ role: 'user', content: userText });
+    const userBubble = document.createElement('div');
+    userBubble.className = 'chat chat-start';
+    userBubble.innerHTML =
+      '<div class="chat-bubble bg-primary text-primary-content"><pre>' +
+      escapeHtml(userText) +
+      '</pre></div><div class="chat-footer opacity-60 text-xs mt-1">user</div>';
+    chatHistory.appendChild(userBubble);
+
+    svgPreview.insertAdjacentHTML('beforeend', '<span class="loading loading-ring loading-xl"></span>');
+
+    let ai = await generateSVG(history);
+    const match = String(ai).match(/<svg[\s\S]*?<\/svg>/i);
+    const svgCode = match ? match[0] : '';
+
+    history.push({ role: 'assistant', content: svgCode });
+    svgPreview.innerHTML = svgCode;
+
+    const aiBubble = document.createElement('div');
+    aiBubble.className = 'chat chat-end';
+    aiBubble.innerHTML =
+      '<div class="chat-bubble bg-secondary text-secondary-content"><pre>' +
+      escapeHtml(svgCode) +
+      '</pre></div><div class="chat-footer opacity-60 text-xs mt-1">assistant</div>';
+    chatHistory.appendChild(aiBubble);
+
+    try {
+      const resp = await fetch('/api/updateSVG', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, code_svg: svgCode, chat_history: history }),
+      });
+      const ok = await resp.json();
+      if (!ok?.success) console.error('update failed', ok);
+    } catch (err) {
+      console.error('updateSVG error', err);
+    }
+
+    form.querySelector('input[name="history"]').value = JSON.stringify(history);
+    form.reset();
+  });
+</script>

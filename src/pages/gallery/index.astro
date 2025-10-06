@@ -1,0 +1,33 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import pb from '../../pages/utils/pb';
+import { Collections, type SvgRecord } from '../../utils/pocketbase-types';
+import { ui } from "../../i18n/ui.js";
+
+const locale = Astro.locals.lang ?? 'en';
+
+const list: SvgRecord[] = await pb
+  .collection(Collections.Svg)
+  .getFullList({ sort: '-created' });
+---
+
+<Layout title={ui[locale].gallery.title}>
+  <h1 class="text-2xl font-bold mb-6">{ui[locale].gallery.title}</h1>
+  <div class="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+    {list.map((item) => (
+      <div class="card bg-base-100 shadow-xl border border-base-300">
+        <div class="card-body gap-4">
+          <h2 class="card-title">{item.title ?? '(sans titre)'}</h2>
+
+          <div class="rounded-box bg-base-200 p-4 min-h-40">
+            <div set:html={item.code_svg}></div>
+          </div>
+
+          <div class="card-actions justify-end">
+            <a class="btn btn-primary btn-sm" href={`/gallery/${item.id}`}>Ouvrir</a>
+          </div>
+        </div>
+      </div>
+    ))}
+  </div>
+</Layout>
