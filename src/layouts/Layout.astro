@@ -8,7 +8,15 @@ import "../styles/global.css";
 		<meta name="viewport" content="width=device-width" />
 		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
 		<meta name="generator" content={Astro.generator} />
+		
 		<title>Astro Basics</title>
+		<form method="POST" action={Astro.url.pathname} class="inline-block">
+          <select name="language" class="select select-sm" onchange="this.form.submit()">
+            <option disabled selected>{ui[locale].nav.language}</option>
+            <option value="en" selected={locale === 'en'}>English</option>
+            <option value="fr" selected={locale === 'fr'}>Français</option>
+          </select>
+        </form>
 	</head>
 	<body class="h-full">
 		<div class="h-full flex flex-col min-h-0">
