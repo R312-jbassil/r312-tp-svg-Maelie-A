@@ -1,100 +1,72 @@
 // src/pages/api/generateSVG.js
 import { OpenAI } from "openai";
 
-const HF_TOKEN = import.meta.env.HF_TOKEN;
-const HF_URL = import.meta.env.HF_URL || "https://router.huggingface.co/v1";
+const OR_TOKEN = import.meta.env.OR_TOKEN; // ex: "sk-or-..."
+const OR_URL = import.meta.env.OR_URL || "https://openrouter.ai/api/v1";
+const OR_MODEL = import.meta.env.OR_MODEL || "openai/gpt-oss-20b:free";
 
-// Modèles à tenter (dans l'ordre). Tu peux régler HF_MODEL dans .env pour forcer un modèle en priorité.
-const CANDIDATE_MODELS = [
-  import.meta.env.HF_MODEL,
-  "Qwen/Qwen2.5-7B-Instruct",
-  "meta-llama/Meta-Llama-3.1-8B-Instruct",
-  "google/gemma-2-9b-it",
-  "mistralai/Mistral-7B-Instruct-v0.2",
-  "mistralai/Mixtral-8x7B-Instruct-v0.1", // celui-ci n'est PAS chat partout → on tombera sur /completions
-].filter(Boolean);
+// Petite aide pour renvoyer du JSON proprement
+const json = (obj, status = 200) =>
+  new Response(JSON.stringify(obj), {
+    status,
+    headers: { "Content-Type": "application/json; charset=utf-8" },
+  });
 
-const SYS = [
-  "You are an SVG code generator.",
-  "Return ONLY a valid <svg>...</svg> (no backticks, no explanations).",
-  "Use inline attributes only. No external URLs.",
-  "Keep width/height and viewBox consistent (e.g., 512x512).",
-].join(" ");
+// GET -> simple hint
+export const GET = () => json({ ok: true, hint: "Use POST {prompt:'...'}" });
 
-function packPrompt(user) {
-  return `${SYS}\n\nUSER PROMPT:\n${user}\n\nOUTPUT:\n(Only <svg>...</svg>)`;
-}
-
+// POST -> génère un SVG à partir du prompt
 export const POST = async ({ request }) => {
   try {
-    if (!HF_TOKEN) throw new Error("HF_TOKEN manquant (.env)");
-    const { prompt } = await request.json();
-    if (!prompt || typeof prompt !== "string") {
-      return new Response(JSON.stringify({ error: "Prompt invalide" }), {
-        status: 400,
-        headers: { "Content-Type": "application/json" },
-      });
-    }
+    if (!OR_TOKEN) return json({ error: "OR_TOKEN manquant" }, 500);
 
-    const client = new OpenAI({ baseURL: HF_URL, apiKey: HF_TOKEN });
+    const body = await request.json().catch(() => ({}));
 
-    let lastErr = null;
+    // Compat : [{role,content}] | {messages:[...]} | {prompt:"..."}
+    const messages = Array.isArray(body)
+      ? body
+      : Array.isArray(body?.messages)
+      ? body.messages
+      : body?.prompt
+      ? [{ role: "user", content: body.prompt }]
+      : [];
 
-    for (const model of CANDIDATE_MODELS) {
-      // 1) On tente d'abord en chat
-      try {
-        const chat = await client.chat.completions.create({
-          model: "meta-llama/Llama-3.1-8B-Instruct:cerebras",
-          messages: [
-            { role: "system", content: SYS },
-            { role: "user", content: prompt },
-          ],
-          temperature: 0.2,
-          max_tokens: 1200,
-        });
-        const message = chat?.choices?.[0]?.message?.content || "";
-        const svgMatch = message.match(/<svg[\s\S]*?<\/svg>/i);
-        return new Response(
-          JSON.stringify({ svg: svgMatch ? svgMatch[0] : "" }),
-          { headers: { "Content-Type": "application/json" } }
-        );
-      } catch (e) {
-        const msg = String(e?.message || e);
-        // 2) Si le modèle n'est pas "chat", on tente /completions
-        if (
-          msg.includes("not a chat model") ||
-          msg.includes("is not a chat model")
-        ) {
-          try {
-            const comp = await client.completions.create({
-              model,
-              prompt: packPrompt(prompt),
-              temperature: 0.2,
-              max_tokens: 1200,
-            });
-            const text = comp?.choices?.[0]?.text || "";
-            const svgMatch = text.match(/<svg[\s\S]*?<\/svg>/i);
-            return new Response(
-              JSON.stringify({ svg: svgMatch ? svgMatch[0] : "" }),
-              { headers: { "Content-Type": "application/json" } }
-            );
-          } catch (e2) {
-            lastErr = e2;
-            continue;
-          }
-        } else {
-          lastErr = e;
-          continue;
-        }
-      }
-    }
+    const systemMessage = {
+      role: "system",
+      content:
+        "You are an SVG code generator. Respond with ONLY raw, valid SVG markup for the user's request. " +
+        "Do not include backticks or explanations. Include ids for key elements.",
+    };
 
-    throw lastErr || new Error("Aucun modèle/provider utilisable.");
-  } catch (err) {
-    console.error("[generateSVG] error:", err);
-    return new Response(JSON.stringify({ error: String(err.message || err) }), {
-      status: 500,
-      headers: { "Content-Type": "application/json" },
+    const client = new OpenAI({
+      baseURL: OR_URL,
+      apiKey: OR_TOKEN,
     });
+
+    const resp = await client.chat.completions.create({
+      model: OR_MODEL,
+      messages: [systemMessage, ...messages],
+      temperature: 0.3,
+      max_tokens: 2048,
+    });
+
+    const content = resp?.choices?.[0]?.message?.content ?? "";
+
+    // On tente d’extraire le bloc <svg>…</svg>
+    const match = content.match(/<svg[\s\S]*?<\/svg>/i);
+    const svg = (match ? match[0] : content).trim();
+
+    if (!svg || !svg.includes("<svg")) {
+      return json(
+        { error: "Aucun SVG détecté dans la réponse du modèle." },
+        502
+      );
+    }
+
+    // ✅ Important : on renvoie une STRING et pas un objet
+    return json({ svg });
+  } catch (e) {
+    console.error("generateSVG error:", e);
+    return json({ error: "Erreur serveur generateSVG" }, 500);
   }
 };
