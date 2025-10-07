@@ -1,30 +1,23 @@
-export const onRequest = async (context, next) => {
-  if (context.url.pathname.startsWith("/api/")) return next();
+import PocketBase from "pocketbase";
 
-  if (context.request.method === "POST") {
-    const form = await context.request.formData().catch(() => null);
-    const lang = form?.get("language");
-    if (lang === "en" || lang === "fr") {
-      context.cookies.set("locale", lang, {
-        path: "/",
-        maxAge: 60 * 60 * 24 * 365,
-      });
-      return Response.redirect(
-        new URL(context.url.pathname + context.url.search, context.url),
-        303
-      );
-    }
+const PB_URL = import.meta.env.PB_URL || "http://127.0.0.1:8090/";
+
+export async function onRequest(
+  { request, locals },
+  next
+) {
+  const pb = new PocketBase(PB_URL);
+  pb.authStore.loadFromCookie(request.headers.get("cookie") || "");
+
+  try {
+    // rafraîchit le token si possible
+    if (pb.authStore.isValid) await pb.collection("users").authRefresh();
+  } catch {
+    pb.authStore.clear();
   }
 
-  const cookieLocale = context.cookies.get("locale")?.value;
-  context.locals.lang =
-    cookieLocale === "fr" || cookieLocale === "en"
-      ? cookieLocale
-      : context.preferredLocale?.startsWith("fr")
-      ? "fr"
-      : context.preferredLocale?.startsWith("en")
-      ? "en"
-      : "en";
+  // expose l’utilisateur à tes routes/pages
+  locals.user = pb.authStore.model || null;
 
   return next();
-};
+}

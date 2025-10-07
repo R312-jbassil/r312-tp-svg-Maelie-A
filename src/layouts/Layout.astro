@@ -1,5 +1,6 @@
 ---
 import "../styles/global.css";
+const { locale, ui } = Astro.props;
 ---
 <!doctype html>
 <html lang="en" data-theme="light" class="h-full">
@@ -8,19 +9,23 @@ import "../styles/global.css";
 		<meta name="viewport" content="width=device-width" />
 		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
 		<meta name="generator" content={Astro.generator} />
-		
 		<title>Astro Basics</title>
 		<form method="POST" action={Astro.url.pathname} class="inline-block">
-          <select name="language" class="select select-sm" onchange="this.form.submit()">
-            <option disabled selected>{ui[locale].nav.language}</option>
-            <option value="en" selected={locale === 'en'}>English</option>
-            <option value="fr" selected={locale === 'fr'}>Français</option>
-          </select>
-        </form>
+		  <select name="language" class="select select-sm" onchange="this.form.submit()">
+			<option disabled selected>{ui?.[locale]?.nav?.language ?? 'Language'}</option>
+			<option value="en" selected={locale === 'en'}>English</option>
+			<option value="fr" selected={locale === 'fr'}>Français</option>
+		  </select>
+		</form>
 	</head>
 	<body class="h-full">
 		<div class="h-full flex flex-col min-h-0">
 			<div class="flex-1 min-h-0">
+				<!-- Boutons vers la galerie -->
+				<div class="mb-4 flex gap-2">
+					<a href="/" class="btn btn-primary">Accueil</a>
+					<a href="/gallery" class="btn btn-secondary">Voir la galerie</a>
+				</div>
 				<slot />
 			</div>
 		</div>
