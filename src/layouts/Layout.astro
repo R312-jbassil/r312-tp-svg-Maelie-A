@@ -1,33 +1,43 @@
 ---
-import "../styles/global.css";
-const { locale, ui } = Astro.props;
+import "../styles/global.css"
+import { ui } from "../i18n/ui.js";
+
+// Props usuelles : title + contenu via <slot />
+const { title = "" } = Astro.props;
+
+// Langue courante fournie par le middleware
+const locale = (Astro.locals.lang as "en" | "fr") ?? "en";
+const t = ui[locale];
 ---
-<!doctype html>
-<html lang="en" data-theme="light" class="h-full">
-	<head>
-		<meta charset="UTF-8" />
-		<meta name="viewport" content="width=device-width" />
-		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-		<meta name="generator" content={Astro.generator} />
-		<title>Astro Basics</title>
-		<form method="POST" action={Astro.url.pathname} class="inline-block">
-		  <select name="language" class="select select-sm" onchange="this.form.submit()">
-			<option disabled selected>{ui?.[locale]?.nav?.language ?? 'Language'}</option>
-			<option value="en" selected={locale === 'en'}>English</option>
-			<option value="fr" selected={locale === 'fr'}>Français</option>
-		  </select>
-		</form>
-	</head>
-	<body class="h-full">
-		<div class="h-full flex flex-col min-h-0">
-			<div class="flex-1 min-h-0">
-				<!-- Boutons vers la galerie -->
-				<div class="mb-4 flex gap-2">
-					<a href="/" class="btn btn-primary">Accueil</a>
-					<a href="/gallery" class="btn btn-secondary">Voir la galerie</a>
-				</div>
-				<slot />
-			</div>
-		</div>
-	</body>
+
+<html lang={locale} data-theme="cupcake">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width" />
+    <title>{title}</title>
+  </head>
+  <body class="min-h-screen bg-base-200">
+    <header class="navbar bg-base-100 px-4">
+      <div class="flex-1">
+        <a href="/" class="btn btn-ghost text-lg">{t.nav.home}</a>
+        <a href="/generator" class="btn btn-ghost">{t.nav.generator}</a>
+        <a href="/gallery" class="btn btn-ghost">{t.nav.gallery}</a>
+      </div>
+
+      <!-- Sélecteur de langue -->
+      <form method="POST" action={Astro.url.pathname + Astro.url.search} class="flex-none">
+        <label class="sr-only">{t.nav.language}</label>
+        <select name="language" class="select select-bordered select-sm"
+                onchange="this.form.submit()">
+          <option value="" disabled>{t.nav.language}</option>
+          <option value="en" selected={locale === "en"}>English</option>
+          <option value="fr" selected={locale === "fr"}>Français</option>
+        </select>
+      </form>
+    </header>
+
+    <main class="container mx-auto p-6">
+      <slot />
+    </main>
+  </body>
 </html>

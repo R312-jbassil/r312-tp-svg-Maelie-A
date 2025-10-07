@@ -1,23 +1,19 @@
-import PocketBase from "pocketbase";
+export async function onRequest(context, next) {
+  if (context.url.pathname.startsWith("/api/")) return next();
 
-const PB_URL = import.meta.env.PB_URL || "http://127.0.0.1:8090/";
-
-export async function onRequest(
-  { request, locals },
-  next
-) {
-  const pb = new PocketBase(PB_URL);
-  pb.authStore.loadFromCookie(request.headers.get("cookie") || "");
-
-  try {
-    // rafraîchit le token si possible
-    if (pb.authStore.isValid) await pb.collection("users").authRefresh();
-  } catch {
-    pb.authStore.clear();
+  if (context.request.method === "POST") {
+    const form = await context.request.formData().catch(() => null);
+    const lang = form?.get("language");
+    if (lang === "en" || lang === "fr") {
+      context.cookies.set("locale", String(lang), { path: "/", maxAge: 60*60*24*365, sameSite: "Lax" });
+      return Response.redirect(new URL(context.url.pathname + context.url.search, context.url), 303);
+    }
   }
 
-  // expose l’utilisateur à tes routes/pages
-  locals.user = pb.authStore.model || null;
+  const fromCookie = context.cookies.get("locale")?.value;
+  const al = context.request.headers.get("accept-language") || "";
+  const fromHeader = /^fr\b/i.test(al) ? "fr" : /^en\b/i.test(al) ? "en" : null;
 
+  context.locals.lang = (fromCookie === "fr" || fromCookie === "en") ? fromCookie : (fromHeader ?? "en");
   return next();
 }

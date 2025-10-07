@@ -1,6 +1,8 @@
 ---
 import "../styles/global.css";
 import Layout from "../layouts/Layout.astro";
+import { ui } from "../i18n/ui.js";
+const locale = (Astro.locals.lang as 'en' | 'fr') ?? 'en';
 ---
 <html lang="fr">
   <head><meta charset="utf-8" /><meta name="viewport" content="width=device-width" /><title>Interface site SVG</title></head>

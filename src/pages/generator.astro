@@ -1,194 +1,53 @@
 ---
-import "../styles/global.css";
 import Layout from "../layouts/Layout.astro";
+import { ui } from "../i18n/ui.js";
+const locale = (Astro.locals.lang as "en" | "fr") ?? "en";
+const t = ui[locale];
 ---
-<Layout>
-<html lang="fr" data-theme="cupcake">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width" />
-    <title>Générateur de SVG</title>
-  </head>
-  <body class="min-h-screen bg-base-200">
-    <main class="container mx-auto p-4 md:p-8 space-y-6">
-      <h1 class="text-3xl font-bold">Générateur de SVG</h1>
 
-      <section class="grid gap-6 md:grid-cols-3">
-        <!-- 1) Prompt -->
-        <div class="card bg-base-100">
-          <div class="card-body">
-            <h2 class="card-title">1) Entrer le prompt</h2>
-            <textarea id="user-prompt" class="textarea textarea-bordered h-40"
-              placeholder="Ex: A flat minimal icon of a flower with soft gradients"></textarea>
-            <div class="flex gap-3 pt-2">
-              <button id="generate-button" class="btn btn-primary">Générer</button>
-              <button id="clear-button" class="btn">Effacer</button>
-            </div>
-            <p id="error-msg" class="text-error text-sm mt-2 hidden"></p>
-          </div>
+<Layout title={t.generator.title}>
+  <h1 class="text-3xl font-bold mb-6">{t.generator.title}</h1>
+
+  <!-- ton contenu existant (cartes, boutons, script) mais
+       tous les libellés viennent de `t.generator.*` -->
+  <section class="grid gap-6 md:grid-cols-3">
+    <div class="card bg-base-100">
+      <div class="card-body">
+        <h2 class="card-title">1) {t.generator.promptLabel}</h2>
+        <textarea id="user-prompt" class="textarea textarea-bordered h-40"
+          placeholder="Ex: A flat minimal icon of a flower with soft gradients"></textarea>
+        <div class="flex gap-3 pt-2">
+          <button id="generate-button" class="btn btn-primary">{t.generator.generateButton}</button>
+          <button id="clear-button" class="btn">{locale === "fr" ? "Effacer" : "Clear"}</button>
         </div>
+        <p id="error-msg" class="text-error text-sm mt-2 hidden"></p>
+      </div>
+    </div>
 
-        <!-- 2) Code généré -->
-        <div class="card bg-base-100">
-          <div class="card-body">
-            <h2 class="card-title">2) Code généré</h2>
-            <pre class="mockup-code overflow-auto max-h-[420px]">
-<code id="svg-output">&lt;!-- Le SVG généré apparaîtra ici --&gt;</code>
-            </pre>
-            <div class="flex flex-wrap gap-2">
-              <button id="copy-code" class="btn btn-secondary btn-sm">Copier</button>
-              <button id="download-svg" class="btn btn-accent btn-sm">Télécharger .svg</button>
-              <!-- ✅ Nouveau bouton -->
-              <button id="save-svg" class="btn btn-success btn-sm">Enregistrer dans PocketBase</button>
-            </div>
-            <p id="save-msg" class="text-sm mt-2"></p>
-          </div>
+    <div class="card bg-base-100">
+      <div class="card-body">
+        <h2 class="card-title">2) {t.generator.codePlaceholder}</h2>
+        <pre class="mockup-code overflow-auto max-h-[420px]">
+<code id="svg-output">&lt;!-- {t.generator.codePlaceholder} --&gt;</code>
+        </pre>
+        <div class="flex flex-wrap gap-2">
+          <button id="copy-code" class="btn btn-secondary btn-sm">{t.generator.copyButton ?? (locale==="fr"?"Copier":"Copy")}</button>
+          <button id="download-svg" class="btn btn-accent btn-sm">{t.generator.downloadButton ?? "Télécharger .svg"}</button>
+          <button id="save-svg" class="btn btn-success btn-sm">{t.generator.saveButton ?? "Enregistrer dans PocketBase"}</button>
         </div>
+        <p id="save-msg" class="text-sm mt-2"></p>
+      </div>
+    </div>
 
-        <!-- 3) Aperçu SVG -->
-        <div class="card bg-base-100">
-          <div class="card-body">
-            <h2 class="card-title">3) Aperçu SVG</h2>
-            <div id="svg-container" class="w-full aspect-square bg-base-200 grid place-items-center rounded-xl">
-              <span class="opacity-60">Aperçu</span>
-            </div>
-          </div>
+    <div class="card bg-base-100">
+      <div class="card-body">
+        <h2 class="card-title">3) {t.generator.contentPlaceholder}</h2>
+        <div id="svg-container" class="w-full aspect-square bg-base-200 grid place-items-center rounded-xl">
+          <span class="opacity-60">{t.generator.viewButton}</span>
         </div>
-      </section>
+      </div>
+    </div>
+  </section>
 
-      <a href="/" class="link">← Retour</a>
-    </main>
+  <!-- Garde ton <script> existant ici -->
 </Layout>
-    <script>
-      //@ts-nocheck
-
-      async function generateSVG(prompt) {
-        const res = await fetch('/api/generateSVG', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ prompt }),
-        });
-        if (!res.ok) {
-          const e = await res.json().catch(() => ({}));
-          throw new Error(e.error || ('Erreur HTTP ' + res.status));
-        }
-        const data = await res.json();
-        return data.svg ?? "";
-      }
-
- async function saveToPocketBase(prompt, svg) {
-const res = await fetch('/api/saveSVG', {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({ title: prompt, code_svg: svg, chat_history: [] }),
-  credentials: 'include'
-});
-
-
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok || !data.success) {
-      throw new Error(data?.error || ('HTTP ' + res.status));
-    }
-    return data.id;
-  }
-
-      async function handleSubmit() {
-        const promptEl = document.getElementById("user-prompt");
-        const svgContainer = document.getElementById("svg-container");
-        const svgOutput = document.getElementById("svg-output");
-        const generateButton = document.getElementById("generate-button");
-        const errorMsg = document.getElementById("error-msg");
-
-        const prompt = (promptEl?.value || "").trim();
-        errorMsg.classList.add("hidden");
-        if (!prompt) {
-          errorMsg.textContent = "Merci d'entrer un prompt.";
-          errorMsg.classList.remove("hidden");
-          return;
-        }
-
-        svgContainer.innerHTML = `<span class="loading loading-ring loading-xl"></span>`;
-        generateButton.disabled = true;
-
-        try {
-          const svgCode = await generateSVG(prompt);
-          svgOutput.textContent = svgCode || "<!-- Pas de SVG détecté -->";
-          svgContainer.innerHTML = svgCode || `<div class="text-sm opacity-60">Aucun &lt;svg&gt; trouvé</div>`;
-        } catch (err) {
-          svgOutput.textContent = `<!-- Erreur: ${err.message} -->`;
-          svgContainer.innerHTML = `<div class="text-error">Erreur: ${err.message}</div>`;
-        } finally {
-          generateButton.disabled = false;
-        }
-      }
-
-      function handleClear() {
-        document.getElementById("user-prompt").value = "";
-        document.getElementById("svg-output").textContent = "<!-- Le SVG généré apparaîtra ici -->";
-        document.getElementById("svg-container").innerHTML = `<span class="opacity-60">Aperçu</span>`;
-        document.getElementById("error-msg").classList.add("hidden");
-        document.getElementById("save-msg").textContent = "";
-      }
-
-      function handleCopy() {
-        const code = document.getElementById("svg-output").textContent || "";
-        navigator.clipboard.writeText(code).then(() => {
-          const btn = document.getElementById("copy-code");
-          const old = btn.textContent;
-          btn.textContent = "Copié !";
-          setTimeout(() => (btn.textContent = old), 900);
-        });
-      }
-
-      function handleDownload() {
-        const code = document.getElementById("svg-output").textContent || "";
-        if (!code.includes("<svg")) return;
-        const blob = new Blob([code], { type: "image/svg+xml;charset=utf-8" });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = "generated.svg";
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        URL.revokeObjectURL(url);
-      }
-
-      async function handleSave() {
-        const prompt = (document.getElementById("user-prompt").value || "").trim();
-        const svg = document.getElementById("svg-output").textContent || "";
-        const msg = document.getElementById("save-msg");
-        msg.textContent = "";
-
-        if (!svg.includes("<svg")) {
-          msg.textContent = "Aucun SVG à enregistrer.";
-          msg.className = "text-error text-sm mt-2";
-          return;
-        }
-
-        const btn = document.getElementById("save-svg");
-        const old = btn.textContent;
-        btn.disabled = true;
-        btn.textContent = "Enregistrement…";
-
-        try {
-          const id = await saveToPocketBase(prompt, svg);
-          msg.textContent = "Enregistré ! id = " + id;
-          msg.className = "text-success text-sm mt-2";
-        } catch (e) {
-          msg.textContent = "Erreur d’enregistrement : " + e.message;
-          msg.className = "text-error text-sm mt-2";
-        } finally {
-          btn.disabled = false;
-          btn.textContent = old;
-        }
-      }
-
-      document.getElementById("generate-button")?.addEventListener("click", handleSubmit);
-      document.getElementById("clear-button")?.addEventListener("click", handleClear);
-      document.getElementById("copy-code")?.addEventListener("click", handleCopy);
-      document.getElementById("download-svg")?.addEventListener("click", handleDownload);
-      document.getElementById("save-svg")?.addEventListener("click", handleSave);
-    </script>
-  </body>
-</html>

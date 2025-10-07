@@ -4,7 +4,7 @@ import pb from '../../utils/pb';
 import { Collections, type SvgRecord } from '../../utils/pocketbase-types';
 import { ui } from "../../i18n/ui.js";
 
-const locale = Astro.locals.lang ?? 'en';
+const locale = (Astro.locals.lang as 'en' | 'fr') ?? 'en';
 
 const list: SvgRecord[] = await pb
   .collection(Collections.Svg)
