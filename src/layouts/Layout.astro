@@ -1,15 +1,11 @@
 ---
-import "../styles/global.css"
+import "../styles/global.css";
 import { ui } from "../i18n/ui.js";
-
-// Props usuelles : title + contenu via <slot />
 const { title = "" } = Astro.props;
-
-// Langue courante fournie par le middleware
 const locale = (Astro.locals.lang as "en" | "fr") ?? "en";
 const t = ui[locale];
+const user = Astro.locals.user;
 ---
-
 <html lang={locale} data-theme="cupcake">
   <head>
     <meta charset="utf-8" />
@@ -19,21 +15,33 @@ const t = ui[locale];
   <body class="min-h-screen bg-base-200">
     <header class="navbar bg-base-100 px-4">
       <div class="flex-1">
-        <a href="/" class="btn btn-ghost text-lg">{t.nav.home}</a>
+        <a href="/" class="btn btn-ghost">{t.nav.home}</a>
         <a href="/generator" class="btn btn-ghost">{t.nav.generator}</a>
         <a href="/gallery" class="btn btn-ghost">{t.nav.gallery}</a>
       </div>
+      <div class="flex-none flex items-center gap-3">
+        <form method="POST" action={Astro.url.pathname + Astro.url.search} class="m-0">
+          <select name="language" class="select select-bordered select-sm" onchange="this.form.submit()">
+            <option value="" disabled>{t.nav.language}</option>
+            <option value="en" selected={locale==='en'}>English</option>
+            <option value="fr" selected={locale==='fr'}>Français</option>
+          </select>
+        </form>
 
-      <!-- Sélecteur de langue -->
-      <form method="POST" action={Astro.url.pathname + Astro.url.search} class="flex-none">
-        <label class="sr-only">{t.nav.language}</label>
-        <select name="language" class="select select-bordered select-sm"
-                onchange="this.form.submit()">
-          <option value="" disabled>{t.nav.language}</option>
-          <option value="en" selected={locale === "en"}>English</option>
-          <option value="fr" selected={locale === "fr"}>Français</option>
-        </select>
-      </form>
+        {user ? (
+          <>
+            <span class="text-sm opacity-80 hidden sm:inline">👋 {user.name || user.email}</span>
+            <form method="POST" action="/api/logout" class="m-0">
+              <button type="submit" class="btn btn-primary btn-sm">Logout</button>
+            </form>
+          </>
+        ) : (
+          <>
+            <a href="/login" class="btn btn-outline btn-sm">Login</a>
+            <a href="/signup" class="btn btn-secondary btn-sm">Signup</a>
+          </>
+        )}
+      </div>
     </header>
 
     <main class="container mx-auto p-6">

@@ -1,0 +1,95 @@
+---
+import Layout from "../layouts/Layout.astro";
+import { ui } from "../i18n/ui.js";
+
+const locale: 'en' | 'fr' = (Astro.locals.lang === 'fr' ? 'fr' : 'en');
+
+// déjà connecté ? => vers l’accueil
+if (Astro.locals.user) {
+  return Astro.redirect("/");
+}
+
+// libellés (fallback si pas dans ui.js)
+const t = {
+  title: ui[locale]?.auth?.loginTitle ?? (locale === 'fr' ? "Connexion" : "Sign in"),
+  email: ui[locale]?.auth?.email ?? "Email",
+  password: ui[locale]?.auth?.password ?? (locale === 'fr' ? "Mot de passe" : "Password"),
+  submit: ui[locale]?.auth?.loginButton ?? (locale === 'fr' ? "Se connecter" : "Sign in"),
+  noAccount: ui[locale]?.auth?.noAccount ?? (locale === 'fr' ? "Pas encore de compte ?" : "No account yet?"),
+  goSignup: ui[locale]?.auth?.goSignup ?? (locale === 'fr' ? "Créer un compte" : "Create one"),
+};
+---
+
+<Layout title={t.title}>
+  <section class="min-h-[70vh] grid place-items-center">
+    <div class="w-full max-w-md">
+      <div class="card bg-base-100/60 backdrop-blur border border-base-300 shadow-xl">
+        <div class="card-body gap-4">
+          <div class="flex items-center gap-3">
+            <div class="size-10 rounded-2xl bg-secondary/20 grid place-items-center">
+              <svg width="20" height="20" viewBox="0 0 24 24" class="opacity-80"><path fill="currentColor" d="M12 2L2 7l10 5l10-5l-10-5Zm0 7L2 4l10 5l10-5l-10 5Zm0 3L2 7v10l10 5l10-5V7L12 12Z"/></svg>
+            </div>
+            <h1 class="text-2xl font-bold">{t.title}</h1>
+          </div>
+
+          <form id="login-form" class="grid gap-3">
+            <label class="form-control">
+              <span class="label-text">{t.email}</span>
+              <input name="email" type="email" required class="input input-bordered" />
+            </label>
+
+            <label class="form-control">
+              <span class="label-text">{t.password}</span>
+              <input name="password" type="password" required class="input input-bordered" />
+            </label>
+
+            <button class="btn btn-primary mt-2">{t.submit}</button>
+          </form>
+
+          <div id="status" class="alert hidden mt-2"></div>
+
+          <div class="text-sm opacity-70">
+            {t.noAccount} <a class="link link-primary" href="/signup">{t.goSignup}</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <script>
+    // @ts-nocheck
+    const form = document.getElementById('login-form');
+    const status = document.getElementById('status');
+
+    function show(type, text) {
+      // ✅ backticks + classes propres, aucun caractère invisible
+      status.className = `alert alert-${type} mt-2`;
+      status.textContent = text;
+      status.classList.remove('hidden');
+    }
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const fd = new FormData(form);
+      try {
+        const res = await fetch('/api/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: fd.get('email'), password: fd.get('password') }),
+          credentials: 'include',
+        });
+        if (!res.ok) {
+          show('error', '❌ Email ou mot de passe invalide');
+          return;
+        }
+        const data = await res.json();
+        localStorage.setItem('user', JSON.stringify(data.user));
+        show('success', '✅ Connexion réussie…');
+        setTimeout(() => (location.href = '/'), 400);
+      } catch (err) {
+        console.error(err);
+        show('error', '❌ Erreur de connexion');
+      }
+    });
+  </script>
+</Layout>
